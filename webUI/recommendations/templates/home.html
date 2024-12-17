@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Recommendation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        #results {
+            margin-left: auto;
+            margin-right: auto;
+            width: 50%;
+        }
+
+        #loadingSpinner {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Music Recommendation System</h1>
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <form id="musicForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="songInput" class="form-label">Spotify Song Link or ID</label>
+                        <input type="text" class="form-control" id="songInput" name="song_input" placeholder="Enter Spotify link or song ID" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Get Recommendations</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="mt-3" id="loadingSpinner" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="mt-5" id="results" style="display: none;">
+            <h3>You may like these tracks!</h3>
+            <ul class="list-group" id="recommendationList"></ul>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // CSRF token extraction function for Django
+        function getCSRFToken() {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.startsWith('csrftoken=')) {
+                    return cookie.substring('csrftoken='.length);
+                }
+            }
+            return '';
+        }
+
+        // Handle form submission event
+        document.getElementById('musicForm').addEventListener('submit', async function (event) {
+            event.preventDefault(); // Prevent page reload
+            const songInput = document.getElementById('songInput').value;
+
+            // Show loading spinner
+            document.getElementById('loadingSpinner').style.display = 'block';
+
+            // Hide previous results
+            document.getElementById('results').style.display = 'none';
+
+            try {
+                // Send request to server
+                const response = await fetch("{% url 'recommend' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ song_input: songInput })
+                });
+
+                // Check response from server
+                if (!response.ok) {
+                    throw new Error('Error fetching recommendations');
+                }
+
+                const data = await response.json();
+
+                // Log server response
+                console.log('Server response/recommendations:', data);
+
+                // Hide loading spinner after response
+                document.getElementById('loadingSpinner').style.display = 'none';
+
+                // Clear previous recommendations and display new ones
+                const recommendationList = document.getElementById('recommendationList');
+                recommendationList.innerHTML = ''; // Clear previous results
+
+                if (data.recommendations && data.recommendations.length > 0) {
+                    data.recommendations.forEach(track => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item';
+                        li.innerHTML = `<a href="${track.preview_url}" target="_blank">${track.track_name} by ${track.artist_name}</a>`;
+                        recommendationList.appendChild(li);
+                    });
+
+                    // Show results section
+                    document.getElementById('results').style.display = 'block';
+                } else {
+                    recommendationList.innerHTML = '<li class="list-group-item">No recommendations found.</li>';
+                    document.getElementById('results').style.display = 'block';
+                }
+            } catch (error) {
+                console.error(error);
+                alert('An error occurred while fetching recommendations.');
+
+                // Hide loading spinner if error occurs
+                document.getElementById('loadingSpinner').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
